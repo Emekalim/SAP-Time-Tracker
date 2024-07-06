@@ -179,10 +179,21 @@ class CatsTimeTracker:
         self.edit_buttons[row].config(image=self.photo_edit)
 
     def delete_chargeline(self,row):
-        del self.chargelines[row]
-        del self.entries[row]
-        self.modify_chargeline_window.destroy()
-        self.open_modify_chargelines()
+        print(len(self.chargelines))
+        if row + 1 > len(self.chargelines):
+            for entry in self.entries[row]:
+                entry.destroy()
+            del self.entries[row]
+
+            self.edit_buttons[row].destroy()
+            self.delete_button[row].destroy()
+            del self.edit_buttons[row]
+            del self.delete_button[row]
+        else: 
+            del self.chargelines[row]
+            del self.entries[row]
+            self.modify_chargeline_window.destroy()
+            self.open_modify_chargelines()
     
     def reset_chargeline(self):
         file_path = self.documents_path/ "chargelines.xlsx"      
@@ -220,7 +231,7 @@ class CatsTimeTracker:
         if next_row == 1:
             self.no_charge_lbl.destroy()
         print(next_row)
-        if next_row <= 15:
+        if next_row <= 40:
             row_entries = []
             for col in range(6):
                 entry = ttk.Entry(self.modify_chargeline_window)
@@ -239,7 +250,7 @@ class CatsTimeTracker:
 
             # Add buttons to Delete Chargelines
             button_delete_chargeline = tk.Button(self.modify_chargeline_window, image=self.photo_delete, borderwidth=0, highlightthickness=1, 
-                                                  command=lambda r=next_row-1: self.toggle_entries(r))
+                                                  command=lambda r=next_row-1: self.delete_chargeline(r))
             button_delete_chargeline.grid(row=next_row, column=7, padx=(2, 10), pady=5, sticky='ns')
             self.delete_button.append(button_delete_chargeline)
 
