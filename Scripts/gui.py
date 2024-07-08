@@ -28,6 +28,7 @@ class CatsTimeTracker:
         self.load_icons()
         self.create_activity_rows()    
         self.active_stopwatch = None
+        self.temp_changes = False 
 
     def setup_menu(self):
         menubar = tk.Menu(self.root)
@@ -92,15 +93,18 @@ class CatsTimeTracker:
         newMail.display()
 
     def open_modify_chargelines(self):
-        num_rows = len(self.chargelines) # Number of rows of entry boxes
+        print(self.temp_changes)
+        if self.temp_changes == False:
+            self.temp_chargelines = self.chargelines.copy()
+        num_rows = len(self.temp_chargelines) # Number of rows of entry boxes
         self.modify_chargeline_window = tk.Toplevel(self.root)
         self.modify_chargeline_window.title("Modify Chargelines")
         self.modify_chargeline_window.resizable(False, False)
-        
         labels = ["Description", "LDN", "Rec. Order", "Network", "Operation", "Sub-O"]
         self.entries = []
         self.edit_buttons = []
         self.delete_button = []
+ 
         
         # Create labels
         for i, label in enumerate(labels):
@@ -112,9 +116,12 @@ class CatsTimeTracker:
             for row in range(num_rows):
                 row_entries = []
                 for col in range(len(labels)):
-                    entry = ttk.Entry(self.modify_chargeline_window)
+                    if col != 0:
+                        entry = ttk.Entry(self.modify_chargeline_window, justify="center")
+                    else:
+                        entry = ttk.Entry(self.modify_chargeline_window)
                     entry.grid(row=row + 1, column=col, padx=5, pady=5)
-                    entry.insert(0, self.chargelines[row][col])
+                    entry.insert(0, self.temp_chargelines[row][col])
                     entry.config(state='disabled')
                     row_entries.append(entry)
                 
@@ -131,6 +138,8 @@ class CatsTimeTracker:
                                                     command=lambda r=row: self.delete_chargeline(r))
                 button_delete_chargeline.grid(row=row + 1, column=len(labels)+1, padx=(2, 10), pady=5, sticky='ns')
                 self.delete_button.append(button_delete_chargeline)
+
+
         else:
             self.no_charge_lbl_frame = tk.Frame(self.modify_chargeline_window)
             self.no_charge_lbl_frame.grid(row=1, column=0, rowspan=20, columnspan=5, sticky='se')
@@ -174,63 +183,84 @@ class CatsTimeTracker:
         self.edit_buttons[row].config(image=self.photo_save)
     
     def save_entries(self, row):
+        self.temp_changes = True
+        mod_row = []
         for entry in self.entries[row]:  
-            entry.config(state='disabled')
-        self.edit_buttons[row].config(image=self.photo_edit)
+            mod_row.append(entry.get())
+    
+        #Error Handler
+        if not is_array_completely_empty(mod_row):
+            for idx, entry in enumerate(self.entries[row]):  
+                if idx == 0 and entry.get().strip() == '':
+                    message ="Unable to Save a Chargeline without a Description \nPlease Input a Description for the Charge Number"
+                    self.show_custom_messagebox('Error', message,'error')
+                    return
+                entry.config(state='disabled')
+            self.temp_chargelines[row] = mod_row
+            self.edit_buttons[row].config(image=self.photo_edit)
+        else: 
+            message ="Unable to Save an Empty Row \nPlease Input a Charge Number"
+            self.show_custom_messagebox('Error', message,'error')
 
     def delete_chargeline(self,row):
-        print(len(self.chargelines))
-        if row + 1 > len(self.chargelines):
-            for entry in self.entries[row]:
-                entry.destroy()
-            del self.entries[row]
-
-            self.edit_buttons[row].destroy()
-            self.delete_button[row].destroy()
-            del self.edit_buttons[row]
-            del self.delete_button[row]
-        else: 
-            del self.chargelines[row]
-            del self.entries[row]
-            self.modify_chargeline_window.destroy()
-            self.open_modify_chargelines()
-    
-    def reset_chargeline(self):
-        file_path = self.documents_path/ "chargelines.xlsx"      
-        self.chargelines = read_excel(file_path)
+        # Error Checks
+        for idx, entry_row in enumerate(self.entries):
+            if idx != row and str(entry_row[0].cget("state")) == "normal":
+                message = 'Save All Other Chargelines First'
+                self.show_custom_messagebox('Error', message,'error')
+                return               
+        self.temp_changes = True   
+        del self.temp_chargelines[row]
+        del self.entries[row]
         self.modify_chargeline_window.destroy()
         self.open_modify_chargelines()
+    
+    def reset_chargeline(self):
+        message = 'Warning: This action will reset all entries to the last saved chargelines. Any unsaved changes will be lost. Do you wish to continue?'
+        place_holder = self.show_custom_messagebox('Warning', message,'okcancel')
+        if place_holder:
+            self.temp_changes = False
+            self.modify_chargeline_window.destroy()
+            self.open_modify_chargelines()
 
     def save_and_exit(self):
-        # Save data from the entry boxes to self.data
-        new_row = []
-        self.chargelines =[]
-        for row_entries in self.entries:
+        message = 'Warning: This action will save the current chargelines and overwrite the existing chargelines. Any previously saved data will be permanently lost. Do you wish to proceed?'
+        place_holder = self.show_custom_messagebox('Warning', message,'okcancel')
+        if place_holder:
             new_row = []
-            for entry in row_entries:
-                new_row.append(entry.get())
-            if is_array_completely_empty(new_row):
-                pass
-            else:
-                self.chargelines.append(new_row)
+            self.chargelines = []
+            for row_entries in self.entries:
+                new_row = []
+                for entry in row_entries:
+                    new_row.append(entry.get().strip())
+                if is_array_completely_empty(new_row):
+                    pass
+                else:
+                    self.chargelines.append(new_row)
 
-        print(self.chargelines)
+            columns =['Description', 'LDN', 'Rec. Order', 'Network', 'Operation', 'Sub-O',]
+            df = pd.DataFrame(self.chargelines, columns=columns)
+            file_path = f"{self.documents_path}/chargelines.xlsx"
+            # print(file_path)
+            df.to_excel(file_path, index=False)
 
-        columns =['Description', 'LDN', 'Rec. Order', 'Network', 'Operation', 'Sub-O',]
-        df = pd.DataFrame(self.chargelines, columns=columns)
-        print(df)
-        file_path = f"{self.documents_path}/chargelines.xlsx"
-        # print(file_path)
-        df.to_excel(file_path, index=False)
+            # Close the second window
+            self.modify_chargeline_window.destroy()
 
-        # Close the second window
-        self.modify_chargeline_window.destroy()
+            #Reset Temp Variables
+            self.temp_changes = False
+            self.temp_chargelines = []
 
-    def add_new_charge_line(self):    
+    def add_new_charge_line(self):
         next_row = len(self.entries) + 1
         if next_row == 1:
             self.no_charge_lbl.destroy()
         print(next_row)
+        for button in self.edit_buttons:
+            if button.cget('image') == str(self.photo_save):
+                print(button.cget('image') == str(self.photo_save))
+                print('Save All Chargelines First')
+                return 
         if next_row <= 40:
             row_entries = []
             for col in range(6):
@@ -238,8 +268,8 @@ class CatsTimeTracker:
                 entry.grid(row=next_row, column=col, padx=5, pady=5)
                 entry.config(state='normal')
                 row_entries.append(entry)
-            
             self.entries.append(row_entries)
+            self.temp_chargelines.append(['','','','','',''])
             
             # Add buttons to Edit Chargeline 
             button_edit_chargeline = tk.Button(self.modify_chargeline_window, image=self.photo_save, borderwidth=0, highlightthickness=1, 
@@ -279,7 +309,6 @@ class CatsTimeTracker:
         self.chargelines = read_excel(file_path) 
         self.hour_entry_fields = {}
         self.start_buttons = {}
-        # self.stop_buttons = {}
         self.combo_boxes = {}
         self.chargeline_key = {}
 
@@ -306,13 +335,6 @@ class CatsTimeTracker:
             
             button_start_stop.grid(row=i, column=6, sticky='news', padx=(0,5))
             self.start_buttons[i] = button_start_stop
-
-            # button_stop = tk.Button(self.root, image=self.photo_stop, borderwidth=0, highlightthickness=0, 
-            #                         state="disabled", command=lambda i=i: self.on_stop_button_click(i))
-            
-            # button_stop.grid(row=i, column=7, sticky='news', padx=(0,10))
-            # self.stop_buttons[i] = button_stop
-            # button_stop.configure(state="disabled")
 
 
         self.button_frame = tk.Frame(self.root)
@@ -437,7 +459,7 @@ class CatsTimeTracker:
                     print(self.combo_boxes[rows].current())
                     chargline_hour = self.hour_entry_fields[rows].get()
                     index = self.combo_boxes[rows].current() # Gives positional index of selection
-                    if index != -1:
+                    if index != -1: #-1 Means no option was selected
                         chargelines_export = self.chargelines[index].copy()
                         chargelines_export.append(chargline_hour)
                         export_time.append(chargelines_export)
