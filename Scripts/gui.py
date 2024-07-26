@@ -36,8 +36,8 @@ class CatsTimeTracker:
         #Create File Menu 
         filemenu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label ='File', menu = filemenu) 
-        filemenu.add_command(label="Modify Chargelines", command=self.open_modify_chargelines)
-        filemenu.add_command(label="Export Timeline")
+        filemenu.add_command(label="View/Modify Chargelines", command=self.open_modify_chargelines)
+        # filemenu.add_command(label="Export Timeline") # Future improvement
         
         #Create help Menu 
         helpmenu = tk.Menu(menubar, tearoff=0)
@@ -264,7 +264,7 @@ class CatsTimeTracker:
         if next_row <= 40:
             row_entries = []
             for col in range(6):
-                entry = ttk.Entry(self.modify_chargeline_window)
+                entry = ttk.Entry(self.modify_chargeline_window,justify="center")
                 entry.grid(row=next_row, column=col, padx=5, pady=5)
                 entry.config(state='normal')
                 row_entries.append(entry)
@@ -355,7 +355,6 @@ class CatsTimeTracker:
         
         button_export_to_sap.grid(row=0, column=4, sticky='nw', pady=(5,5), padx=1)
 
-        # self.total_rows = 6
 
     def toggle_start_stop(self, row):
         if self.start_buttons[row].cget('image') == str(self.photo_start):
@@ -432,7 +431,7 @@ class CatsTimeTracker:
             # Calculate the total time in seconds, including the start offset
             self.total_seconds = start_seconds + elapsed_time
             _day_time = _day_time + elapsed_time
-            print(f'This is the total time in seconds {_day_time:.5f}')
+            # print(f'This is the total time in seconds {_day_time:.5f}')
             # Convert total_seconds back to hours, minutes, and seconds for display
             # print(start_seconds)
             # print(self.total_seconds)
@@ -461,8 +460,12 @@ class CatsTimeTracker:
                     index = self.combo_boxes[rows].current() # Gives positional index of selection
                     if index != -1: #-1 Means no option was selected
                         chargelines_export = self.chargelines[index].copy()
-                        chargelines_export.append(chargline_hour)
-                        export_time.append(chargelines_export)
+                        print(chargelines_export)
+                        if not is_array_completely_empty(chargelines_export[1:]):
+                            chargelines_export.append(chargline_hour)
+                            export_time.append(chargelines_export)
+                        else:
+                            self.show_custom_messagebox("Error", f"Activity: {chargelines_export[0]}, Does not have a Charge Number. \nExcluded From Export Ref: Row {rows}", "info")
                     else: 
                         self.show_custom_messagebox("Error", f"Activity Chargline Not Valid. Excluded From Export\n Ref: Row {rows}", "info")
                 else:

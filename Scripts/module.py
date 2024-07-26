@@ -218,7 +218,7 @@ class SapApi:
         self.session.findById(field_id).Text = str(time_value)
 
     def cat2_input_time(self,data_frame):
-        """Inputs time into SAP based on the Excel sheet."""
+        """Inputs time into SAP based on input data frame."""
         # Load Excel workbook and select the CATS sheet
         df_input = data_frame
         # df_input = pandas_read_file(input_sheet_path,dtype=str)
