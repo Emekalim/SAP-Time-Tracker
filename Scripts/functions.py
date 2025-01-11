@@ -5,6 +5,7 @@ import os
 import numpy as np
 from pathlib import Path
 import sys
+import configparser
 
 def convert_to_time_format(hour):
     hours, remainder = divmod(int(hour), 3600)
@@ -36,7 +37,7 @@ def read_csv(csv_file_path):
 
     return rows  # Return the list of rows
 
-def resize_image(icon_path):
+def resize_image(icon_path, size = (15,15)):
     """
     Resizes an image to a fixed size of 15x15 pixels and converts it to a PhotoImage object for Tkinter.
 
@@ -47,7 +48,7 @@ def resize_image(icon_path):
     - photo (ImageTk.PhotoImage): A Tkinter-compatible PhotoImage object of the resized image.
     """
     img = Image.open(icon_path)
-    img = img.resize((15, 15), Image.Resampling.LANCZOS)
+    img = img.resize(size, Image.Resampling.LANCZOS)
     photo = ImageTk.PhotoImage(img)
     return photo
 
@@ -169,5 +170,12 @@ def resource_path(relative_path):
 
 def is_array_completely_empty(array):
     return all(cell == "" for row in array for cell in row)
+
+def read_config_file():
+    pass
+
+def config_autosave():
+    pass
+    
 
 

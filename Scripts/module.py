@@ -52,7 +52,6 @@ class SapApi:
                     self.Connection = App.openconnection("P10 (SSO) - PW ECC Production System", True)
                     pass
             self.session = self.Connection.Children(0)
-            print(self.session)
             self.user = self.session.Info.User
 
     def get_transaction_name(self):
@@ -217,7 +216,7 @@ class SapApi:
         # Update the field with the new time value
         self.session.findById(field_id).Text = str(time_value)
 
-    def cat2_input_time(self,data_frame):
+    def cat2_input_time(self, data_frame, date):
         """Inputs time into SAP based on input data frame."""
         # Load Excel workbook and select the CATS sheet
         df_input = data_frame
@@ -226,7 +225,7 @@ class SapApi:
 
         # Initialize necessary variables
         # addresses = []
-        day_of_week = pd.Timestamp('now').dayofweek + 1  # Adjusted to match VBA Weekday function, assuming Monday as first day
+        day_of_week = pd.Timestamp(date).dayofweek + 1  # Adjusted to match VBA Weekday function, assuming Monday as first day
         
         # Find cells with data in the specified range
         # for index, value in enumerate(df_input.loc[:, 'Time'],0):  # Assuming data starts from G11 to G200
@@ -239,6 +238,30 @@ class SapApi:
         self.session.findById("wnd[0]/usr/ctxtCATSFIELDS-PERNR").Text = employee_number
         self.session.findById("wnd[0]/tbar[1]/btn[5]").press()
         self._update_time_records(df_input, day_of_week)
+        
+    
+    def _check_sap_access(self):
+        try:
+            self.session.findById("wnd[0]").Iconify()
+            self.open_transaction("ZHPR")
+            self.session.findById("wnd[0]/usr/ctxtS_BNAME-LOW").text = self.user
+            self.session.findById("wnd[0]/tbar[1]/btn[8]").press()
+            array =["Id", "Text"]
+            JSONTree = self.session.GetObjectTree("wnd[0]", array)
+            if 'ZS_SCR' in JSONTree:
+                scripting_access = True
+            else:
+                scripting_access = False
+        except:
+            scripting_access = False
+        
+        self.session.findById("wnd[0]/tbar[0]/btn[3]").press()
+        self.session.findById("wnd[0]/tbar[0]/btn[3]").press()
+
+        return scripting_access
+
+
+
 
     def _update_time_records(self, df_input, day_index):
         """Update or insert time records in SAP based on preprocessed input."""
@@ -513,7 +536,7 @@ class SapApi:
           os.startfile(detail_sn_path)  
 
 # test = SapApi()
-# print(test.user)
+# test._check_sap_access()
 # print(test.get_transaction_name())
 # test.open_transaction("CAT2")
 # test.new_session()

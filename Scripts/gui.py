@@ -18,20 +18,24 @@ class CatsTimeTracker:
     """
     def __init__(self, root):
         self.root = root
+        self.load_icons()
+        self.root.wm_iconphoto(True, self.photo_logo)
         self.setup_menu()
+        self.root.protocol("WM_DELETE_WINDOW", self.on_exit)
+        self.documents_path = Path.home() / "Documents"/ "SAP Time Tracker"
+        self.sap_status = False
         self.total_rows = 6
         self.start_times = {}  # Record the start time for each stopwatch
         self.elapsed_times = {i: 0 for i in range(1, self.total_rows)}  # Initialize elapsed time for each row
         self.total_day_time = 0
-        self.documents_path = Path.home() / "Documents"/ "SAP Time Tracker"
         self.initial_label_current = "Activity XX\n Time Spent: "
         self.initial_label_total = "Total Time Elapsed Today: \n "
         self.setup_window()
         self.create_widgets()
-        self.load_icons()
         self.create_activity_rows()    
         self.active_stopwatch = None
         self.temp_changes = False 
+        self.read_config_file()
 
     def setup_menu(self):
         """
@@ -50,11 +54,22 @@ class CatsTimeTracker:
         helpmenu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label ='Help', menu = helpmenu) 
         helpmenu.add_command(label="User Guide", command=self.open_help)
+        helpmenu.add_command(label="Scripting Access Guide", command=self.open_help_sap)
         helpmenu.add_command(label="Report a Bug", command=self.send_bug_mail)
         # Insert the menubar in the main window.
-        self.root.config(menu=menubar)
+
+        #Create Tool Menu 
+        toolmenu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label ='Tools', menu = toolmenu) 
+        toolmenu.add_command(label="Validate Scripting Access", command=self.validate_scripting_access)
         
-    
+        self.root.config(menu=menubar)
+         
+    def on_exit(self):
+        self.autosave_time()
+        self.update_config_file()
+        self.root.destroy()
+
     def setup_window(self):
         """
         Configures the main window of the application including title, size, and default font settings.
@@ -98,6 +113,25 @@ class CatsTimeTracker:
         document_path = resource_path(Path("Documents/User Guide.pdf"))
         print(document_path)
         os.startfile(document_path)
+    
+    def open_help_sap(self):
+        """
+        Opens the user guide by launching a PDF document.
+        """
+        document_path = resource_path(Path("Documents/Scripting Access Guide.pdf"))
+        print(document_path)
+        os.startfile(document_path)
+    
+    def validate_scripting_access(self):
+        SAP = module.SapApi()
+        scripting_access = SAP._check_sap_access()
+
+        if scripting_access:
+            message = 'User Has Scripting Access'
+            self.show_custom_messagebox('INFO', message, 'info')
+        else:
+            message = 'User Does Not Have Scripting Access \n Go to teh help menu to view the Scripting Access Guide '
+            self.show_custom_messagebox('INFO', message, 'info')
 
     def send_bug_mail(self):
         """
@@ -226,9 +260,6 @@ class CatsTimeTracker:
         self.modify_chargeline_window.transient(self.root)
         self.modify_chargeline_window.grab_set()
         self.root.wait_window(self.modify_chargeline_window)
-
-
-
 
     def toggle_entries(self, row):
         """
@@ -361,8 +392,10 @@ class CatsTimeTracker:
         print(next_row)
         for button in self.edit_buttons:
             if button.cget('image') == str(self.photo_save):
-                print(button.cget('image') == str(self.photo_save))
-                print('Save All Chargelines First')
+                # print(button.cget('image') == str(self.photo_save))
+                message = 'ERROR: Save All Chargelines First'
+                place_holder = self.show_custom_messagebox('ERROR', message,'error')
+                # print('Save All Chargelines First')
                 return 
         if next_row <= 40:
             row_entries = []
@@ -380,7 +413,7 @@ class CatsTimeTracker:
                                                 command=lambda r=next_row-1: self.toggle_entries(r))
             button_edit_chargeline.grid(row=next_row, column=6, padx=5, pady=5, sticky='news')
             self.edit_buttons.append(button_edit_chargeline)
-            print(len(self.edit_buttons))
+            # print(len(self.edit_buttons))
 
             # Add buttons to Delete Chargelines
             button_delete_chargeline = tk.Button(self.scrollable_frame, image=self.photo_delete, borderwidth=0, highlightthickness=1, 
@@ -390,14 +423,15 @@ class CatsTimeTracker:
         self.set_canvas_height(next_row)
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         self.root.after(100, lambda: self.canvas.yview_moveto(1.0))
-
-
-        
+      
     def load_icons(self):
         """
         Loads and resizes the necessary icons for the application's buttons.
         """
         # Get the directory where the script is running
+        self.icon_path_logo = resource_path(Path("Icons/logo.png"))
+        self.photo_logo = resize_image(self.icon_path_logo)
+
         self.icon_path_start = resource_path(Path("Icons/play.png"))
         self.photo_start = resize_image(self.icon_path_start)
 
@@ -412,8 +446,6 @@ class CatsTimeTracker:
 
         self.icon_path_save = resource_path(Path("Icons/save.png"))
         self.photo_save = resize_image(self.icon_path_save)
-
-
 
     def create_activity_rows(self):
         """
@@ -435,8 +467,8 @@ class CatsTimeTracker:
         for i in range(1, self.total_rows):
             combo_activity = ttk.Combobox(self.root, values=chargline_activities, width=30)
             combo_activity.grid(row=i, column=2, rowspan=1, columnspan=3, padx=(5,5), pady=(5,0), sticky='n')
-            combo_activity['values']= chargline_activities
-            combo_activity['state']= 'readonly'
+            combo_activity['values'] = chargline_activities
+            combo_activity['state'] = 'readonly'
 
             self.combo_boxes[i] = combo_activity
             hour_entry = tk.Entry(self.root, width=7)
@@ -468,7 +500,6 @@ class CatsTimeTracker:
                                          command=self.final_time, width=11, height=1)
         
         button_export_to_sap.grid(row=0, column=4, sticky='nw', pady=(5,5), padx=1)
-
 
     def toggle_start_stop(self, row):
         """
@@ -580,7 +611,7 @@ class CatsTimeTracker:
             self.hour_entry_fields[self.active_stopwatch].configure(state='disabled')
             self.root.after(1000, self.update_stopwatch)  # Schedule the next update
 
-    def final_time(self):
+    def final_time(self, date='now'):
         """
         Finalizes and exports time tracked for activities to SAP, including validation and export steps.
         """
@@ -612,13 +643,14 @@ class CatsTimeTracker:
                 columns =['Description', 'LDN', 'Rec. Order', 'Network', 'Operation', 'Sub-O', 'Time']
                 df = pd.DataFrame(export_time, columns=columns)
                 SAP = module.SapApi()
-                SAP.cat2_input_time(df)
+                SAP.cat2_input_time(df, date)
                 self.show_custom_messagebox('Operation Complete', 'Succesfully Uploaded Time', 'info')
+                self.sap_status = True
                 place_holder = self.show_custom_messagebox('Save Time Log', 'Do You Want To Save Time Log?', 'yesno')
                 if place_holder:
                     df['Time'] = df['Time'].astype(float)
                     df['Time'] = df['Time'].round(1)
-                    self.save_time_log_to_excel(df, open=False)
+                    self.save_time_log_to_excel(df, date, open=False)
                 # print(df)
             else:
                 self.show_custom_messagebox('Error', 'No Time to Export', 'info')
@@ -677,6 +709,7 @@ class CatsTimeTracker:
             self.hour_entry_fields.clear()
             self.start_buttons.clear()
             # self.stop_buttons.clear()
+            self.sap_status = False
             self.create_activity_rows()
             self.label_current_time.configure(text=self.initial_label_current)
             self.label_total_time.configure(text=self.initial_label_total)
@@ -712,9 +745,7 @@ class CatsTimeTracker:
             messagebox_function(title, message)
             return None  # For informational, warning, or error message boxes, return None or a default value
         
-
-
-    def save_time_log_to_excel(self, df, open=False):
+    def save_time_log_to_excel(self, df, date, open=False):
         """
         Saves the time tracking log to an Excel file.
         
@@ -722,11 +753,113 @@ class CatsTimeTracker:
             df: The DataFrame containing the time tracking data.
             open: Whether to open the saved file after exporting (default is False).
         """
-        
-        today = datetime.now()
-        date_str = today.strftime('%m_%d_%y')
+        if date != 'now':
+            date_obj = datetime.strptime(date, '%m-%d-%y')
+            date_str = date_obj.strftime('%m_%d_%y')
+        else:
+            today = datetime.now()
+            date_str = today.strftime('%m_%d_%y')
+
         file_path = f"{self.documents_path}/Time Records/time_charge_{date_str}.xlsx"
         print(file_path)
         df.to_excel(file_path, index=False)
         if open:
             os.startfile(file_path)
+
+    def read_config_file(self, config_mode = 'startup'):       
+        """
+        Reads a configuration file (config_ala.ini) from the module folder and retrieves configuration data
+        for the specified ALA Parameter section if it exists.
+
+        Args:
+            self: Instance of the class.
+            ala (str): The algorithim name in the configuration file to be read.
+
+        Returns:
+            bool: False if the configuration file or the specified section is not found, or if the user 
+                  chooses not to use the previous configuration.
+
+        """
+    
+        config = configparser.ConfigParser()
+        config_path = os.path.join(self.documents_path, 'TimeTracker.ini')
+
+        if os.path.exists(config_path):
+            # Read the INI file
+            config.read(config_path)
+            if config_mode == 'startup':
+                autosave_date = config['autosave']["DATE"]
+                autosave_SAP = config['autosave']["Exported to SAP"]
+                # Checks to be performed when app is open
+                if autosave_SAP == 'False':
+                    place_holder = self.show_custom_messagebox(title="Recover Last Session", message='Recover Time from Last Open Session?', box_type='yesno')
+                    if place_holder:
+                        self.load_autosave_time(config['autosave']["autosave_time"])
+                        if  autosave_date != datetime.today().strftime('%m-%d-%y'):
+                            prompt_date = datetime.strptime(autosave_date, '%m-%d-%y').strftime('%A, %B %d')
+                            place_holder = self.show_custom_messagebox(title="Export to SAP", message=f'Do you want to Save this Time to SAP for {prompt_date}?', box_type='yesno')
+                            if place_holder:
+                                self.final_time(autosave_date)
+        else:
+            with open(os.path.join(self.documents_path, 'TimeTracker.ini'), "w") as configfile:
+                config['autosave'] = {}
+                config['autosave']["Exported to SAP"] = str(self.sap_status)
+                config.write(configfile)
+
+    def update_config_file(self):
+        """
+        Saves or updates the configuration file (TimeTracker.ini) with the given ALA Parameter section data.
+
+        Args:
+            self: Instance of the class.
+
+        """
+
+        config = configparser.ConfigParser()
+        config.read(os.path.join(self.documents_path, 'TimeTracker.ini'))
+
+        key = 'autosave'
+        if key not in config:
+            config[key] = {}
+        config[key]["Exported to SAP"] = str(self.sap_status)
+        config[key]["DATE"] = datetime.today().strftime('%m-%d-%y')
+        config[key]["autosave_time"] = os.path.join(self.documents_path, 'autosave.csv')
+
+        with open(os.path.join(self.documents_path, 'TimeTracker.ini'), "w") as configfile:
+            config.write(configfile)
+        # print('config file updated')
+    
+    def autosave_time(self):
+        export_time = []
+        autosave_loc = os.path.join(self.documents_path, 'autosave.csv')
+        chargelines_export = []
+        row_count = len(self.hour_entry_fields)
+        export_count = 0
+        for rows in self.hour_entry_fields:
+            if self.hour_entry_fields[rows].get() != "":
+                chargline_hour = self.hour_entry_fields[rows].get()
+                index = self.combo_boxes[rows].current() # Gives positional index of selection
+                if index != -1: #-1 Means no option was selected
+                    chargelines_export = self.chargelines[index].copy()
+                    if not is_array_completely_empty(chargelines_export[1:]):
+                        chargelines_export.append(chargline_hour)
+                        export_time.append(chargelines_export)
+            else:
+                export_count = export_count + 1 # Error Handler to determine if all rows are empty
+        if export_count != row_count:
+            columns =['Description', 'LDN', 'Rec. Order', 'Network', 'Operation', 'Sub-O', 'Time']
+            df = pd.DataFrame(export_time, columns=columns)
+            df.to_csv(autosave_loc, index=False)
+            # os.popen(f'attrib +h {autosave_loc}')
+        else:
+            #delete autosave file
+            pass
+
+    def load_autosave_time(self, path):
+        data =  pd.read_csv(path)
+        columns = ['Description', 'LDN', 'Rec. Order', 'Network', 'Operation', 'Sub-O']
+        df = pd.DataFrame(self.chargelines, columns=columns)
+        for i, row in data.iterrows():
+            idx = df.index[df['Description'] == row.Description].tolist()[0]
+            self.combo_boxes[i+1].current(idx)
+            self.hour_entry_fields[i+1].insert(0, f"{row.Time}")
